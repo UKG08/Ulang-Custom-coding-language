@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ULang Language Interpreter</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #0f1117 0%, #1f232e 100%);
+      color: #e0e0e0;
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    header {
+      background: linear-gradient(to right, #61dafb, #4cc2e9);
+      width: 100%;
+      padding: 1rem;
+      text-align: center;
+      font-size: 1.7rem;
+      color: #0f1117;
+      font-weight: bold;
+      letter-spacing: 1px;
+      animation: fadeIn 1.5s ease;
+    }
+    .toolbar {
+      text-align: center;
+      margin: 0.5rem 0;
+      animation: fadeIn 2s ease;
+    }
+    .toolbar button {
+      background: linear-gradient(to right, #61dafb, #4cc2e9);
+      color: #0f1117;
+      padding: 0.7rem 1.4rem;
+      border: none;
+      border-radius: 25px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(97, 218, 251, 0.4);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .toolbar button:hover {
+      transform: scale(1.05);
+      box-shadow: 0 6px 16px rgba(97, 218, 251, 0.5);
+    }
+    .main {
+      display: flex;
+      flex: 1;
+      padding: 1rem;
+      gap: 1rem;
+      animation: fadeIn 2.5s ease;
+    }
+    .editor, .output {
+      flex: 1;
+      background: linear-gradient(145deg, #1c1f26, #222631);
+      border-radius: 12px;
+      padding: 1rem;
+      box-shadow: 0 0 12px rgba(0, 0, 0, 0.4);
+      font-family: 'Fira Code', monospace;
+      backdrop-filter: blur(4px);
+      transition: all 0.3s ease-in-out;
+    }
+    .editor textarea {
+      width: 100%;
+      height: 100%;
+      background-color: transparent;
+      color: #ffffff;
+      border: none;
+      resize: none;
+      font-size: 1rem;
+      outline: none;
+    }
+    .line-ok { color: #9ae69d; animation: fadeIn 0.3s ease-in; }
+    .line-var { color: #ffc66d; animation: fadeIn 0.3s ease-in; }
+    .line-error { color: #ff6c6c; animation: fadeIn 0.3s ease-in; }
+    .input-line {
+      color: #00ffff;
+      margin-top: 4px;
+    }
+    .input-field {
+      background: #11151f;
+      border: none;
+      border-bottom: 1px solid #61dafb;
+      color: #fff;
+      padding: 5px;
+      font-family: monospace;
+      font-size: 1rem;
+      width: 150px;
+      margin-left: 8px;
+    }
+
+    @keyframes fadeIn {
+      0% { opacity: 0; transform: translateY(-10px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <header>🚀 ULang Language Interpreter</header>
+  <div class="toolbar">
+    <button onclick="runCode()">▶️ Run ULang Code</button>
+  </div>
+  <div class="main">
+    <div class="editor">
+      <textarea id="code" placeholder="Write your ULang code here..."></textarea>
+    </div>
+    <div class="output" id="output">
+      <!-- Output will appear here -->
+    </div>
+  </div>
+
+  <script>
+    const output = document.getElementById("output");
+
+    async function runCode() {
+      const code = document.getElementById("code").value.split("\n");
+      const variables = {};
+      output.innerHTML = "";
+
+      function printLine(text, type = "line-ok") {
+        const div = document.createElement("div");
+        div.className = type;
+        div.textContent = text;
+        output.appendChild(div);
+      }
+
+      function evalValue(val) {
+        val = val.trim();
+        if (!isNaN(val)) return Number(val);
+        return variables[val] !== undefined ? variables[val] : val;
+      }
+
+      function replaceVars(text) {
+        return text.replace(/\b\w+\b/g, word => variables[word] ?? word);
+      }
+
+      function evalCondition(line) {
+        const parts = line.split(" is ");
+        if (parts.length < 2) return false;
+        const [left, right] = parts;
+        const tokens = right.split(" ");
+        const operator = tokens[0] + " " + tokens[1];
+        const value = tokens.slice(2).join(" ");
+        const varVal = evalValue(left.trim());
+        const numVal = evalValue(value);
+
+        switch(operator) {
+          case "greater than": return varVal > numVal;
+          case "less than": return varVal < numVal;
+          case "equal to": return varVal == numVal;
+          case "not equal": return varVal != numVal;
+          default: return false;
+        }
+      }
+
+      async function getInput(label) {
+        return new Promise(resolve => {
+          const wrapper = document.createElement("div");
+          wrapper.className = "input-line";
+          wrapper.innerHTML = `<span>👉 Enter ${label}: </span>`;
+
+          const input = document.createElement("input");
+          input.className = "input-field";
+          input.type = "text";
+          input.placeholder = label;
+
+          input.addEventListener("keydown", function (e) {
+            if (e.key === "Enter") {
+              variables[label] = isNaN(input.value) ? input.value : Number(input.value);
+              printLine(`[input] ${label} = ${variables[label]}`, "line-var");
+              wrapper.remove();
+              resolve(variables[label]);
+            }
+          });
+
+          wrapper.appendChild(input);
+          output.appendChild(wrapper);
+          input.focus();
+        });
+      }
+
+      for (let i = 0; i < code.length; i++) {
+        let line = code[i].trim();
+        if (!line || line.startsWith("skip")) continue;
+
+        if (line.startsWith("print")) {
+          const toPrint = replaceVars(line.slice(6));
+          printLine(toPrint);
+
+        } else if (line.startsWith("remember") || line.startsWith("set")) {
+          const parts = line.split(" is ");
+          if (parts.length === 2) {
+            const name = parts[0].split(" ").pop().trim();
+            let value = parts[1].trim();
+            variables[name] = evalValue(value);
+            printLine(`[set] ${name} = ${variables[name]}`, "line-var");
+          }
+
+        } else if (line.startsWith("get")) {
+          const varName = line.split(" ")[1];
+          await getInput(varName);
+
+        } else if (line.startsWith("add")) {
+          const [, x, , y] = line.split(" ");
+          const result = evalValue(x) + evalValue(y);
+          printLine(result);
+
+        } else if (line.startsWith("subtract")) {
+          const [, x, , y] = line.split(" ");
+          const result = evalValue(y) - evalValue(x);
+          printLine(result);
+
+        } else if (line.startsWith("multiply")) {
+          const [, x, , y] = line.split(" ");
+          const result = evalValue(x) * evalValue(y);
+          printLine(result);
+
+        } else if (line.startsWith("divide")) {
+          const [, x, , y] = line.split(" ");
+          const result = evalValue(x) / evalValue(y);
+          printLine(result);
+
+        } else if (line.startsWith("if")) {
+          const condParts = line.split(" then ");
+          if (condParts.length === 2) {
+            const cond = condParts[0].slice(3).trim();
+            const action = condParts[1].trim();
+            if (evalCondition(cond)) code.push(action);
+          }
+
+        } else if (line.startsWith("otherwise")) {
+          const action = line.slice(9).trim();
+          code.push(action);
+
+        } else if (line === "exit") {
+          printLine("[exit] Program stopped.", "line-error");
+          break;
+
+        } else {
+          printLine(`[error] Unknown command: ${line}`, "line-error");
+        }
+      }
+    }
+  </script>
+</body>
+</html>
